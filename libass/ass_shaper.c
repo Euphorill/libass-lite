@@ -48,13 +48,11 @@ enum {
 struct ass_shaper {
     ASS_ShapingLevel shaping_level;
 
-    // No-FriBidi: LTR-only mode
-    int n_codepoints, n_pars;
+    // LTR-only：不再需要按字符类型与 bidi 段落分组的数组
+    int n_codepoints;
     FriBidiChar *event_text; // just a reference, owned by text_info
-    FriBidiCharType *ctypes;
     FriBidiLevel *emblevels;
     FriBidiStrIndex *cmap;
-    FriBidiParType *pbase_dir;
     FriBidiParType base_direction;
 
     // OpenType features
@@ -94,25 +92,10 @@ void ass_shaper_info(ASS_Library *lib)
 static bool check_codepoint_allocations(ASS_Shaper *shaper, size_t new_size)
 {
     if (new_size > shaper->n_codepoints) {
-        if (!ASS_REALLOC_ARRAY(shaper->ctypes, new_size) ||
-            !ASS_REALLOC_ARRAY(shaper->emblevels, new_size) ||
+        if (!ASS_REALLOC_ARRAY(shaper->emblevels, new_size) ||
             !ASS_REALLOC_ARRAY(shaper->cmap, new_size))
             return false;
         shaper->n_codepoints = new_size;
-    }
-    return true;
-}
-
-/**
- * \brief grow per-bidi-paragraph arrays, if needed
- * \param n_pars requested size
- */
-static bool check_par_allocations(ASS_Shaper *shaper, size_t n_pars)
-{
-    if (shaper->whole_text_layout && n_pars > shaper->n_pars) {
-        if (!ASS_REALLOC_ARRAY(shaper->pbase_dir, n_pars))
-            return false;
-        shaper->n_pars = n_pars;
     }
     return true;
 }
@@ -123,10 +106,8 @@ static bool check_par_allocations(ASS_Shaper *shaper, size_t n_pars)
 void ass_shaper_free(ASS_Shaper *shaper)
 {
     free(shaper->features);
-    free(shaper->ctypes);
     free(shaper->emblevels);
     free(shaper->cmap);
-    free(shaper->pbase_dir);
     hb_font_funcs_destroy(shaper->font_funcs);
     hb_buffer_destroy(shaper->buf);
     free(shaper);

@@ -2,6 +2,13 @@ libass [![Coverity scan build status](https://scan.coverity.com/projects/3531/ba
 ======
 libass is a portable subtitle renderer for the ASS/SSA (Advanced Substation Alpha/Substation Alpha) subtitle format. It is mostly compatible with VSFilter.
 
+---
+
+> **This repository is a fork.** It removes the FriBidi dependency and supports LTR text only.
+> Everything specific to this fork — what changed, how it was verified, and the caveats —
+> is in **[README.nofribidi.md](README.nofribidi.md)**.
+> Upstream libass: <https://github.com/libass/libass>
+
 Get it
 ======
 See [GitHub releases](https://github.com/libass/libass/releases) for the latest release 0.17.5 (released 2026-06-24).

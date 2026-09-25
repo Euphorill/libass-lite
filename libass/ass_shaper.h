@@ -26,22 +26,23 @@ typedef struct ass_shaper ASS_Shaper;
 #include "ass_render.h"
 #include "ass_cache.h"
 
-// FriBidi compatibility types and constants (no-fribidi build)
-// These are kept for API/ABI compatibility with the original libass.
+/*
+ * 本构建不含 FriBidi（见 README.nofribidi.md）。下面这些名字只为让其余源码
+ * 继续编译而存在：它们不是 FriBidi 的头文件，也绝不与外部交换，仅在本文件
+ * 的各个调用点之间自比。取值照抄 FriBidi 的公开 ABI（fribidi-bidi-types.h
+ * 里的 FRIBIDI_*_VAL），这样语义与上游一致，而不是各写一套自造的数。
+ *
+ * 本构建里实际只需 FRIBIDI_PAR_LTR 与 FRIBIDI_PAR_ON 两个。上游若新增对
+ * 其它取值的引用，应当让它编译失败——那表示上游动了双向文本这条路径，
+ * 本地补丁需要重新审一遍。
+ */
 typedef uint32_t FriBidiCharType;
 typedef int FriBidiStrIndex;
 typedef int FriBidiParType;
 typedef signed char FriBidiLevel;
 
-// Base direction constants (compatible with FriBidi values)
-#define FRIBIDI_PAR_LTR   0
-#define FRIBIDI_PAR_RTL   1
-#define FRIBIDI_PAR_ON   -1  /* autodetect (always LTR in no-fribidi) */
-#define FRIBIDI_PAR_WLTR  2  /* weak LTR (always LTR in no-fribidi) */
-#define FRIBIDI_PAR_WRTL  3  /* weak RTL (always LTR in no-fribidi) */
-
-// Bidi character type constants (compatible with FriBidi values)
-#define FRIBIDI_TYPE_BS   11  /* block separator (paragraph break) */
+#define FRIBIDI_PAR_LTR   0x00000110u /* FRIBIDI_TYPE_LTR_VAL */
+#define FRIBIDI_PAR_ON    0x00000040u /* FRIBIDI_TYPE_ON_VAL，上游用它表示“自动检测” */
 
 void ass_shaper_info(ASS_Library *lib);
 ASS_Shaper *ass_shaper_new(Cache *metrics_cache, Cache *face_size_metrics_cache);
