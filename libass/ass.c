@@ -1810,9 +1810,6 @@ int ass_track_set_feature(ASS_Track *track, ASS_Feature feature, int enable)
 
     // all supported non-meta features
     static const uint32_t supported =
-#ifdef USE_FRIBIDI_EX_API
-        FEATURE_MASK(ASS_FEATURE_BIDI_BRACKETS) |
-#endif
 #ifdef CONFIG_UNIBREAK
         FEATURE_MASK(ASS_FEATURE_WRAP_UNICODE) |
 #endif

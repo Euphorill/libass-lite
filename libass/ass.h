@@ -245,11 +245,9 @@ typedef enum {
      * Unicode Bidirectional Algorithm introduced in Unicode 6.3.
      * This is incompatible with VSFilter and disabled by default.
      *
-     * (Directional isolates, also introduced in Unicode 6.3,
-     * are unconditionally processed when FriBidi is new enough.)
-     *
-     * This feature may be unavailable at runtime (ass_track_set_feature
-     * may return -1) if libass was compiled against old FriBidi.
+     * This feature is unavailable in no-FriBidi builds because the
+     * Unicode Bidirectional Algorithm is not implemented.
+     * ass_track_set_feature will return -1 for this feature.
      */
     ASS_FEATURE_BIDI_BRACKETS,
 

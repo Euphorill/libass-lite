@@ -22,12 +22,15 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
-#include <fribidi.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 #include FT_SYNTHESIS_H
 #include <hb.h>
+
+// FriBidi compatibility types (no-fribidi build)
+// FriBidiChar is used in TextInfo.event_text (UTF-32 codepoints)
+typedef uint32_t FriBidiChar;
 
 #include "ass.h"
 #include "ass_font.h"

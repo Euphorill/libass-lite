@@ -21,14 +21,27 @@
 
 typedef struct ass_shaper ASS_Shaper;
 
-#include <fribidi.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include "ass_render.h"
 #include "ass_cache.h"
 
-#if FRIBIDI_MAJOR_VERSION >= 1
-#define USE_FRIBIDI_EX_API
-#endif
+// FriBidi compatibility types and constants (no-fribidi build)
+// These are kept for API/ABI compatibility with the original libass.
+typedef uint32_t FriBidiCharType;
+typedef int FriBidiStrIndex;
+typedef int FriBidiParType;
+typedef signed char FriBidiLevel;
+
+// Base direction constants (compatible with FriBidi values)
+#define FRIBIDI_PAR_LTR   0
+#define FRIBIDI_PAR_RTL   1
+#define FRIBIDI_PAR_ON   -1  /* autodetect (always LTR in no-fribidi) */
+#define FRIBIDI_PAR_WLTR  2  /* weak LTR (always LTR in no-fribidi) */
+#define FRIBIDI_PAR_WRTL  3  /* weak RTL (always LTR in no-fribidi) */
+
+// Bidi character type constants (compatible with FriBidi values)
+#define FRIBIDI_TYPE_BS   11  /* block separator (paragraph break) */
 
 void ass_shaper_info(ASS_Library *lib);
 ASS_Shaper *ass_shaper_new(Cache *metrics_cache, Cache *face_size_metrics_cache);
@@ -40,9 +53,6 @@ void ass_shaper_find_runs(ASS_Shaper *shaper, ASS_Renderer *render_priv,
 void ass_shaper_set_base_direction(ASS_Shaper *shaper, FriBidiParType dir);
 void ass_shaper_set_language(ASS_Shaper *shaper, const char *code);
 void ass_shaper_set_level(ASS_Shaper *shaper, ASS_ShapingLevel level);
-#ifdef USE_FRIBIDI_EX_API
-void ass_shaper_set_bidi_brackets(ASS_Shaper *shaper, bool match_brackets);
-#endif
 void ass_shaper_set_whole_text_layout(ASS_Shaper *shaper, bool enable);
 bool ass_shaper_shape(ASS_Shaper *shaper, TextInfo *text_info);
 void ass_shaper_cleanup(ASS_Shaper *shaper, TextInfo *text_info);

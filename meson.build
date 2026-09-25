@@ -99,12 +99,6 @@ deps += dependency(
     default_options: ['harfbuzz=disabled'],
 )
 
-deps += dependency(
-    'fribidi',
-    version: '>= 0.19.1',
-    default_options: ['docs=false', 'tests=false'],
-)
-
 harfbuzz_options = [
     'tests=disabled',
     'cairo=disabled',

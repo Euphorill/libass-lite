@@ -48,7 +48,7 @@ enum {
 struct ass_shaper {
     ASS_ShapingLevel shaping_level;
 
-    // FriBidi log2vis
+    // No-FriBidi: LTR-only mode
     int n_codepoints, n_pars;
     FriBidiChar *event_text; // just a reference, owned by text_info
     FriBidiCharType *ctypes;
@@ -69,11 +69,6 @@ struct ass_shaper {
     hb_font_funcs_t *font_funcs;
     hb_buffer_t *buf;
 
-#ifdef USE_FRIBIDI_EX_API
-    FriBidiBracketType *btypes;
-    bool bidi_brackets;
-#endif
-
     char whole_text_layout;
 };
 
@@ -87,9 +82,8 @@ struct ass_shaper_metrics_data {
  */
 void ass_shaper_info(ASS_Library *lib)
 {
-    ass_msg(lib, MSGL_INFO, "Shaper: FriBidi "
-            FRIBIDI_VERSION " (SIMPLE)"
-            " HarfBuzz-ng %s (COMPLEX)", hb_version_string()
+    ass_msg(lib, MSGL_INFO, "Shaper: "
+            "HarfBuzz-ng %s (COMPLEX, no FriBidi)", hb_version_string()
            );
 }
 
@@ -101,9 +95,6 @@ static bool check_codepoint_allocations(ASS_Shaper *shaper, size_t new_size)
 {
     if (new_size > shaper->n_codepoints) {
         if (!ASS_REALLOC_ARRAY(shaper->ctypes, new_size) ||
-#ifdef USE_FRIBIDI_EX_API
-            (shaper->bidi_brackets && !ASS_REALLOC_ARRAY(shaper->btypes, new_size)) ||
-#endif
             !ASS_REALLOC_ARRAY(shaper->emblevels, new_size) ||
             !ASS_REALLOC_ARRAY(shaper->cmap, new_size))
             return false;
@@ -133,9 +124,6 @@ void ass_shaper_free(ASS_Shaper *shaper)
 {
     free(shaper->features);
     free(shaper->ctypes);
-#ifdef USE_FRIBIDI_EX_API
-    free(shaper->btypes);
-#endif
     free(shaper->emblevels);
     free(shaper->cmap);
     free(shaper->pbase_dir);
@@ -705,7 +693,7 @@ static bool shape_harfbuzz(ASS_Shaper *shaper, GlyphInfo *glyphs, size_t len)
                     lead_context, i - offset + 1);
         }
 
-        props.direction = FRIBIDI_LEVEL_IS_RTL(level) ?
+        props.direction = (level & 1) ?
             HB_DIRECTION_RTL : HB_DIRECTION_LTR;
         props.script = glyphs[offset].script;
         props.language  = hb_shaper_get_run_language(shaper, props.script);
@@ -772,35 +760,6 @@ void ass_shaper_determine_script(ASS_Shaper *shaper, GlyphInfo *glyphs,
             last_script = info->script;
         }
     }
-}
-
-/**
- * \brief Shape event text with FriBidi. Does mirroring and simple
- * Arabic shaping.
- * \param len number of clusters
- */
-static void shape_fribidi(ASS_Shaper *shaper, GlyphInfo *glyphs, size_t len)
-{
-    int i;
-    FriBidiJoiningType *joins = calloc(len, sizeof(*joins));
-
-    // shape on codepoint level
-    fribidi_get_joining_types(shaper->event_text, len, joins);
-    fribidi_join_arabic(shaper->ctypes, len, shaper->emblevels, joins);
-    fribidi_shape(FRIBIDI_FLAGS_DEFAULT | FRIBIDI_FLAGS_ARABIC,
-            shaper->emblevels, len, joins, shaper->event_text);
-
-    // update indexes
-    for (i = 0; i < len; i++) {
-        GlyphInfo *info = glyphs + i;
-        FT_Face face = info->font->faces[info->face_index];
-        info->symbol = shaper->event_text[i];
-        info->glyph_index = ass_font_index_magic(face, shaper->event_text[i]);
-        if (info->glyph_index)
-            info->glyph_index = FT_Get_Char_Index(face, info->glyph_index);
-    }
-
-    free(joins);
 }
 
 /**
@@ -917,19 +876,13 @@ void ass_shaper_set_language(ASS_Shaper *shaper, const char *code)
 }
 
 /**
- * Set shaping level. Essentially switches between FriBidi and HarfBuzz.
+ * Set shaping level. In no-fribidi builds, SIMPLE and COMPLEX both use
+ * HarfBuzz (SIMPLE is treated as COMPLEX).
  */
 void ass_shaper_set_level(ASS_Shaper *shaper, ASS_ShapingLevel level)
 {
     shaper->shaping_level = level;
 }
-
-#ifdef USE_FRIBIDI_EX_API
-void ass_shaper_set_bidi_brackets(ASS_Shaper *shaper, bool match_brackets)
-{
-    shaper->bidi_brackets = match_brackets;
-}
-#endif
 
 void ass_shaper_set_whole_text_layout(ASS_Shaper *shaper, bool enable)
 {
@@ -941,77 +894,30 @@ void ass_shaper_set_whole_text_layout(ASS_Shaper *shaper, bool enable)
 
 /**
  * \brief Shape an event's text. Calculates directional runs and shapes them.
+ *
+ * No-FriBidi version: all text is treated as LTR.
+ * Embedding levels are set to 0 and HarfBuzz handles complex shaping.
+ *
  * \param text_info event's text
  * \return success, when 0
  */
 bool ass_shaper_shape(ASS_Shaper *shaper, TextInfo *text_info)
 {
-    int i, ret, last_break;
-    FriBidiParType dir, *pdir;
+    int i;
     GlyphInfo *glyphs = text_info->glyphs;
     shaper->event_text = text_info->event_text;
 
     if (!check_codepoint_allocations(shaper, text_info->length))
         return false;
 
-    for (i = 0; i < text_info->length; i++)
-        shaper->event_text[i] = glyphs[i].symbol;
-
-    fribidi_get_bidi_types(shaper->event_text,
-            text_info->length, shaper->ctypes);
-
-    int n_pars = 1;
-    for (i = 0; i < text_info->length - 1; i++)
-        if (shaper->ctypes[i] == FRIBIDI_TYPE_BS)
-            n_pars++;
-
-    if (!check_par_allocations(shaper, n_pars))
-        return false;
-
-#ifdef USE_FRIBIDI_EX_API
-    if (shaper->bidi_brackets) {
-        fribidi_get_bracket_types(shaper->event_text,
-                text_info->length, shaper->ctypes, shaper->btypes);
-    }
-#endif
-
-    // Get bidi embedding levels
-    last_break = 0;
-    pdir = shaper->pbase_dir;
+    // Copy glyph symbols and set all embedding levels to 0 (LTR)
     for (i = 0; i < text_info->length; i++) {
-        // Embedding levels must be calculated one bidi "paragraph" at a time
-        if (i == text_info->length - 1 ||
-                shaper->ctypes[i] == FRIBIDI_TYPE_BS ||
-                (!shaper->whole_text_layout &&
-                    (glyphs[i + 1].starts_new_run || glyphs[i].hspacing))) {
-            dir = shaper->base_direction;
-#ifdef USE_FRIBIDI_EX_API
-            FriBidiBracketType *btypes = NULL;
-            if (shaper->bidi_brackets)
-                btypes = shaper->btypes + last_break;
-            ret = fribidi_get_par_embedding_levels_ex(
-                    shaper->ctypes + last_break, btypes,
-                    i - last_break + 1, &dir, shaper->emblevels + last_break);
-#else
-            ret = fribidi_get_par_embedding_levels(shaper->ctypes + last_break,
-                    i - last_break + 1, &dir, shaper->emblevels + last_break);
-#endif
-            if (ret == 0)
-                return false;
-            last_break = i + 1;
-            if (shaper->whole_text_layout)
-                *pdir++ = dir;
-        }
+        shaper->event_text[i] = glyphs[i].symbol;
+        shaper->emblevels[i] = 0;
     }
 
-    switch (shaper->shaping_level) {
-    case ASS_SHAPING_SIMPLE:
-        shape_fribidi(shaper, glyphs, text_info->length);
-        return true;
-    case ASS_SHAPING_COMPLEX:
-    default:
-        return shape_harfbuzz(shaper, glyphs, text_info->length);
-    }
+    // Always use complex shaping (HarfBuzz) in no-fribidi mode
+    return shape_harfbuzz(shaper, glyphs, text_info->length);
 }
 
 /**
@@ -1081,43 +987,20 @@ void ass_shaper_cleanup(ASS_Shaper *shaper, TextInfo *text_info)
 
 /**
  * \brief Calculate reorder map to render glyphs in visual order
+ *
+ * No-FriBidi version: LTR-only, identity reorder map (cmap[i] = i).
+ *
  * \param shaper shaper instance
  * \param text_info text to be reordered
  * \return map of reordered characters, or NULL
  */
 FriBidiStrIndex *ass_shaper_reorder(ASS_Shaper *shaper, TextInfo *text_info)
 {
-    int i, ret;
+    int i;
 
-    // Initialize reorder map
+    // No-FriBidi: LTR-only, identity reorder map
     for (i = 0; i < text_info->length; i++)
         shaper->cmap[i] = i;
-
-    // Create reorder map line-by-line or run-by-run
-    int last_break = 0;
-    FriBidiParType *pdir = shaper->whole_text_layout ?
-        shaper->pbase_dir : &shaper->base_direction;
-    GlyphInfo *glyphs = text_info->glyphs;
-    for (i = 0; i < text_info->length; i++) {
-        // Bidi "paragraph separators" may occur between line breaks:
-        // U+001C..1E even with ASS_FEATURE_WRAP_UNICODE,
-        // or U+000D, U+0085, U+2029 only without it
-        if (i == text_info->length - 1 || glyphs[i + 1].linebreak ||
-                shaper->ctypes[i] == FRIBIDI_TYPE_BS ||
-                (!shaper->whole_text_layout &&
-                    (glyphs[i + 1].starts_new_run || glyphs[i].hspacing))) {
-            ret = fribidi_reorder_line(0,
-                    shaper->ctypes, i - last_break + 1, last_break, *pdir,
-                    shaper->emblevels, NULL,
-                    shaper->cmap);
-            if (ret == 0)
-                return NULL;
-
-            last_break = i + 1;
-            if (shaper->whole_text_layout && shaper->ctypes[i] == FRIBIDI_TYPE_BS)
-                pdir++;
-        }
-    }
 
     return shaper->cmap;
 }
@@ -1129,17 +1012,14 @@ FriBidiStrIndex *ass_shaper_get_reorder_map(ASS_Shaper *shaper)
 
 /**
  * \brief Resolve a Windows font charset number to a suitable base
- * direction. Generally, use LTR for compatibility with VSFilter. The
- * special value -1, which is not a legal Windows font charset number,
- * can be used for autodetection.
+ * direction.
+ *
+ * No-FriBidi version: always returns LTR.
+ *
  * \param enc Windows font encoding
  */
 FriBidiParType ass_resolve_base_direction(int enc)
 {
-    switch (enc) {
-        case -1:
-            return FRIBIDI_PAR_ON;
-        default:
-            return FRIBIDI_PAR_LTR;
-    }
+    (void)enc;
+    return FRIBIDI_PAR_LTR;
 }

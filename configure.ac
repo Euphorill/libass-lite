@@ -98,12 +98,6 @@ PKG_CHECK_MODULES([FREETYPE], [freetype2 >= 9.17.3], [
     LIBS="$LIBS $FREETYPE_LIBS"
 ])
 
-PKG_CHECK_MODULES([FRIBIDI], [fribidi >= 0.19.1], [
-    pkg_requires="fribidi >= 0.19.1, ${pkg_requires}"
-    CFLAGS="$CFLAGS $FRIBIDI_CFLAGS"
-    LIBS="$LIBS $FRIBIDI_LIBS"
-])
-
 PKG_CHECK_MODULES([HARFBUZZ], [harfbuzz >= 1.2.3], [
     pkg_requires="harfbuzz >= 1.2.3, ${pkg_requires}"
     CFLAGS="$CFLAGS $HARFBUZZ_CFLAGS"

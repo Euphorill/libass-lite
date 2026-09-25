@@ -3032,10 +3032,6 @@ static void setup_shaper(ASS_Shaper *shaper, ASS_Renderer *render_priv)
     ass_shaper_set_kerning(shaper, track->Kerning);
     ass_shaper_set_language(shaper, track->Language);
     ass_shaper_set_level(shaper, render_priv->settings.shaper);
-#ifdef USE_FRIBIDI_EX_API
-    ass_shaper_set_bidi_brackets(shaper,
-            track->parser_priv->feature_flags & FEATURE_MASK(ASS_FEATURE_BIDI_BRACKETS));
-#endif
     ass_shaper_set_whole_text_layout(shaper,
             track->parser_priv->feature_flags & FEATURE_MASK(ASS_FEATURE_WHOLE_TEXT_LAYOUT));
 }
