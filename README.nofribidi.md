@@ -95,6 +95,67 @@ make
 - libunibreak（可选）
 - **不再需要 FriBidi**
 
+## 测试
+
+### 快速冒烟测试
+
+仓库自带测试程序，编译后可以一键验证功能是否正常：
+
+```bash
+# 编译并运行测试（MSYS2 / Linux 均可）
+./build_test.sh
+```
+
+测试通过后会生成 `test_output.bmp`，打开即可看到渲染效果。
+
+### 手动测试
+
+```bash
+# 1. 编译 libass
+meson setup build --buildtype=debug -Dtest=disabled
+ninja -C build
+
+# 2. 编译测试程序
+gcc test_simple.c -o test_simple -Ilibass -Ibuild \
+    build/libass/libass.a \
+    $(pkg-config --cflags --libs freetype2 harfbuzz)
+
+# 3. 运行
+./test_simple test.ass output.bmp
+```
+
+### 测试内容
+
+`test.ass` 包含以下测试项：
+
+| 测试项 | 验证内容 |
+|--------|----------|
+| 英文 / 数字 | 基础 LTR 渲染 |
+| 简体中文 | CJK 字体回退与渲染 |
+| 繁体中文 | CJK 变体 |
+| 日文 | 假名与日汉字 |
+| 韩文 | Hangul 字符 |
+| 彩色特效 | `\c` 标签颜色切换 |
+| 多样式 | 不同字号、字重、对齐方式 |
+
+### 验证要点
+
+- ✅ 程序正常启动，不崩溃
+- ✅ 输出中 **没有** `FRIBIDI` feature
+- ✅ 有 `HARFBUZZ` feature
+- ✅ 生成的 BMP 图片中文字清晰可读
+- ✅ 所有文字从左到右排列
+- ✅ 颜色特效正确显示
+
+### 官方测试套件
+
+如果想跑更全面的测试（需要 libass 原版对比图）：
+
+```bash
+meson setup build -Dtest=enabled
+ninja -C build test
+```
+
 ## 同步上游更新
 
 当 libass 发布新版本时，按以下步骤更新：
